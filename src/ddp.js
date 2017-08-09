@@ -40,7 +40,7 @@ export default class DDP extends EventEmitter {
             }
         });
 
-        this.socket = new Socket(options.SocketConstructor, options.endpoint);
+        this.socket = new Socket(options.SocketConstructor, options.endpoint, options.wx);
 
         this.socket.on("open", () => {
             // When the socket opens, send the `connect` message

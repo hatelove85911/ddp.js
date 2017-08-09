@@ -2,16 +2,19 @@ import EventEmitter from "wolfy87-eventemitter";
 
 export default class Socket extends EventEmitter {
 
-    constructor (SocketConstructor, endpoint) {
+    constructor (SocketConstructor, endpoint, wx) {
         super();
-        this.SocketConstructor = SocketConstructor;
+        // this.SocketConstructor = SocketConstructor;
         this.endpoint = endpoint;
-        this.rawSocket = null;
+        // this.rawSocket = null;
+        this.wx = wx;
     }
 
     send (object) {
         const message = JSON.stringify(object);
-        this.rawSocket.send(message);
+        this.wx.sendSocketMessage({
+          data: message
+        });
         // Emit a copy of the object, as the listener might mutate it.
         this.emit("message:out", JSON.parse(message));
     }
@@ -27,19 +30,25 @@ export default class Socket extends EventEmitter {
         *   disposed of correctly: the socket connection is closed, and the
         *   object can be garbage collected.
         */
-        if (this.rawSocket) {
-            return;
-        }
-        this.rawSocket = new this.SocketConstructor(this.endpoint);
+        // if (this.rawSocket) {
+        //     return;
+        // }
+        this.wx.connectSocket({
+          url: this.endpoint
+        })
+        // this.rawSocket = new this.SocketConstructor(this.endpoint);
 
         /*
         *   Calls to `onopen` and `onclose` directly trigger the `open` and
         *   `close` events on the `Socket` instance.
         */
-        this.rawSocket.onopen = () => this.emit("open");
-        this.rawSocket.onclose = () => {
-            this.rawSocket = null;
-            this.emit("close");
+        
+        this.wx.onSocketOpen(() => this.emit("open"));
+        this.wx.onSocketClose(() => this.emit("close"));
+        // this.rawSocket.onopen = () => this.emit("open");
+        // this.rawSocket.onclose = () => {
+        //     this.rawSocket = null;
+        //     this.emit("close");
         };
         /*
         *   Calls to `onerror` trigger the `close` event on the `Socket`
@@ -48,23 +57,24 @@ export default class Socket extends EventEmitter {
         *   it's possible to recover from it, we prefer to always close the
         *   connection (if it isn't already) and dispose of the socket object.
         */
-        this.rawSocket.onerror = () => {
-            // It's not clear what the socket lifecycle is when errors occurr.
-            // Hence, to avoid the `close` event to be emitted twice, before
-            // manually closing the socket we de-register the `onclose`
-            // callback.
-            delete this.rawSocket.onclose;
-            // Safe to perform even if the socket is already closed
-            this.rawSocket.close();
-            this.rawSocket = null;
-            this.emit("close");
-        };
+        this.wx.onSocketError(() => this.wx.closeSocket());
+        // this.rawSocket.onerror = () => {
+        //     // It's not clear what the socket lifecycle is when errors occurr.
+        //     // Hence, to avoid the `close` event to be emitted twice, before
+        //     // manually closing the socket we de-register the `onclose`
+        //     // callback.
+        //     delete this.rawSocket.onclose;
+        //     // Safe to perform even if the socket is already closed
+        //     this.rawSocket.close();
+        //     this.rawSocket = null;
+        //     this.emit("close");
+        // };
         /*
         *   Calls to `onmessage` trigger a `message:in` event on the `Socket`
         *   instance only once the message (first parameter to `onmessage`) has
         *   been successfully parsed into a javascript object.
         */
-        this.rawSocket.onmessage = message => {
+        this.wx.onSocketMessage(message => {
             var object;
             try {
                 object = JSON.parse(message.data);
@@ -76,7 +86,20 @@ export default class Socket extends EventEmitter {
             // errors, not errors that may occur inside a "message:in" event
             // handler
             this.emit("message:in", object);
-        };
+        });
+        // this.rawSocket.onmessage = message => {
+        //     var object;
+        //     try {
+        //         object = JSON.parse(message.data);
+        //     } catch (ignore) {
+        //         // Simply ignore the malformed message and return
+        //         return;
+        //     }
+        //     // Outside the try-catch block as it must only catch JSON parsing
+        //     // errors, not errors that may occur inside a "message:in" event
+        //     // handler
+        //     this.emit("message:in", object);
+        // };
 
     }
 
@@ -84,9 +107,10 @@ export default class Socket extends EventEmitter {
         /*
         *   Avoid throwing an error if `rawSocket === null`
         */
-        if (this.rawSocket) {
-            this.rawSocket.close();
-        }
+        // if (this.rawSocket) {
+        //     this.rawSocket.close();
+        // }
+        this.wx.closeSocket()
     }
 
 }
